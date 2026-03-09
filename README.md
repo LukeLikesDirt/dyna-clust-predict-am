@@ -1,25 +1,39 @@
-# dyna-clust-predict
+# dyna-clust-predict-am
 
-Prediction of optimal sequence similarity cut-offs for classification
-and clustering of metabarcoding data using **vsearch global alignment**
-and **F-measure optimisation** as a confidence metric, following Vu *et
-al.* (2022).
+`dyna-clust-predict-am` is a **special-use adaptation** of
+`dyna-clust-predict` for predicting similarity cut-offs in
+**arbuscular mycorrhizal (AM) fungi** using the
+**SSU V4 WANDA-AML2 fragment**.
+
+It predicts optimal sequence similarity cut-offs for classification and
+clustering using **vsearch global alignment** and
+**F-measure optimisation**, following Vu *et al.* (2022).
 
 ## Overview
 
-`dyna-clust-predict` predicts optimal sequence similarity thresholds
-across taxonomic ranks using a curated ITS reference database
-(EUKARYOME).
+This repository predicts optimal sequence similarity thresholds for an
+AM-fungi-focused V4 workflow based on EUKARYOME SSU V4 input data.
 
-The pipeline:
+Main pipelines in this repository:
 
--   Extracts ITS1 and ITS2 subregions using ITSx
--   Computes global pairwise similarity using vsearch
--   Optimises similarity cut-offs using F-measure
--   Supports parallel processing for efficient large-scale analyses
+-   `scripts/02_predict_glom_cutoffs_V4.sh`
+  Combined preparation + global cutoff prediction for Glomeromycota at
+  family, genus, and species ranks.
+-   `scripts/03_predict_euk_cutoffs_V4.sh`
+  Combined preparation + global cutoff prediction for Eukaryome at
+  kingdom, phylum, class, and order ranks.
 
-The workflow is conceptually adapted from
-[dnabarcoder](https://github.com/vuthuyduong/dnabarcoder), but:
+## Attribution
+
+This project builds directly on ideas and implementation patterns from:
+
+- [dnabarcoder](https://github.com/vuthuyduong/dnabarcoder)
+- [dyna-clust-predict](https://github.com/LukeLikesDirt/dyna-clust-predict)
+
+Relative to those upstream projects, this repository is specialised for
+AM fungi and the V4 WANDA-AML2 marker fragment.
+
+Core characteristics retained/adapted here include:
 
 -   Uses **vsearch** for global alignment
 -   Supports scalable parallel computation
@@ -27,26 +41,17 @@ The workflow is conceptually adapted from
 
 ## Pipeline steps
 
-  `scripts/01_reformat_ITS.sh`         Download EUKARYOME, reformat headers,
-                                       extract taxonomy
+  `scripts/01_prepare_euk_V4.sh`            Download/process EUKARYOME V4
+                                            and write `eukaryome_V4.*`
 
-  `scripts/02_check_annotations.sh`    Standardise infraspecific annotations
+  `scripts/02_predict_glom_cutoffs_V4.sh`   Build Glomeromycota subsets,
+                                            compute family similarity matrix,
+                                            predict global family/genus/species cutoffs
 
-  `scripts/03_extract_subregions.sh`   Extract ITS1 and ITS2 using ITSx
-
-  `scripts/04_prepare_subsets.sh`      Generate balanced prediction subsets
-
-  `scripts/05_compute_sim.sh`          *(Optional)* Pre-compute similarity
-                                       matrices
-
-  `scripts/06a_predict_cutoffs.sh`     Predict optimal similarity cut-offs
-                                       (all regions sequentially in one job)
-
-  `scripts/06b_launch_all_regions.sh`  Submit one SLURM job per region
-                                       (full_ITS, ITS1, ITS2) in parallel
-
-  `scripts/06b_predict_cutoffs_region.sh`  Worker script for a single region
-                                           (called by `06b_launch_all_regions.sh`)
+  `scripts/03_predict_euk_cutoffs_V4.sh`    Build required global Eukaryome
+                                            ID sets, subset on the fly,
+                                            compute per-rank similarity,
+                                            predict global kingdom/phylum/class/order cutoffs
 
 All scripts must be run from the **project root directory**.
 
@@ -66,10 +71,13 @@ All scripts must be run from the **project root directory**.
   
 ## Directory structure
 
-    data/
-    ├── full_ITS/    # Full ITS sequences, taxonomy, ID files, predictions
-    ├── ITS1/        # ITS1 sequences, taxonomy, ID files, predictions
-    └── ITS2/        # ITS2 sequences, taxonomy, ID files, predictions
+  data/
+  ├── eukaryome_V4.fasta
+  ├── eukaryome_V4.classification
+  ├── glomeromycota_*_V4.fasta
+  ├── glomeromycota_*_V4.classification
+  ├── *.cutoffs.json
+  └── *.predicted
 
 ## Environment setup
 
@@ -90,7 +98,7 @@ conda activate dyna_clust_predict
 Run from the project root:
 
 ``` bash
-sbatch scripts/create_dyna_clust_env.sh
+sbatch scripts/00_create_dyna_clust_env.sh
 conda activate dyna_clust_predict
 ```
 
@@ -98,25 +106,13 @@ conda activate dyna_clust_predict
 
 From the project root:
 
-``` bash
-sbatch scripts/01_reformat_ITS.sh
-sbatch scripts/02_check_annotations.sh
-sbatch scripts/03_extract_subregions.sh
-sbatch scripts/04_prepare_subsets.sh
-sbatch scripts/05_compute_sim.sh   # Optional
-
-# Step 06 — choose one:
-sbatch scripts/06a_predict_cutoffs.sh              # All regions in one job
-bash   scripts/06b_launch_all_regions.sh            # One job per region (parallel)
+```bash
+bash scripts/01_prepare_euk_V4.sh
+bash scripts/02_predict_glom_cutoffs_V4.sh
+bash scripts/03_predict_euk_cutoffs_V4.sh
 ```
 
-> **Note:** Step 05 is optional. Similarity can be computed on-the-fly
-> in Step 06, which is preferred for large datasets and parallel
-> execution.
->
-> `06a` runs all three regions sequentially in a single SLURM job.
-> `06b` submits three independent jobs (one per region) so they run in
-> parallel — faster overall but uses more nodes.
+Both prediction scripts write timestamped logs under `logs/`.
 
 # Key parameters
 

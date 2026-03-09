@@ -1,13 +1,18 @@
-# Data files (large; managed outside git)
-data/full_ITS/
-data/ITS1/
-data/ITS2/
+# Large data files (large; managed outside git)
+data/*.classification
+data/*.fasta
+data/*.sim
+data/*_pred_id_*
 
 # Temporary working files
 tmp/
 
-# SLURM log output
+# Test files and code
+test/
+
+# Log outputs
 slurm/
+logs/
 
 # Similarity matrices (large binary-ish files)
 *.sim
