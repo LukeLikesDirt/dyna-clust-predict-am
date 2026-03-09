@@ -59,7 +59,7 @@ All scripts must be run from the **project root directory**.
 
   `R/predict.R`             Cut-off prediction (parallel or sequential)
 
-## Citation
+## Citations
 
 Tedersoo, L., Hosseyni Moghaddam, M. S., Mikryukov, V., Hakimzadeh, A., Bahram, M., Nilsson, R. H., ... & Anslan, S. (2024). EUKARYOME: the rRNA gene reference database for identification of all eukaryotes. Database, 2024, baae043. https://doi.org/10.1093/database/baae043
 
