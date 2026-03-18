@@ -119,6 +119,11 @@ classification_df <- fasta_df %>%
     family = ifelse(grepl("\\.fam", family), "unidentified", family),
     genus  = ifelse(grepl("\\.gen", genus),  "unidentified", genus)
   ) %>%
+  # Strip parentheses from genus names that are fully wrapped, e.g. (Aleuria) -> Aleuria.
+  # Leaves disambiguation suffixes intact, e.g. Galeropsis(Fungi) is unchanged.
+  mutate(
+    genus = str_replace(genus, "^\\(([^)]+)\\)$", "\\1")
+  ) %>%
   # Construct species names
   mutate(
     species = case_when(
