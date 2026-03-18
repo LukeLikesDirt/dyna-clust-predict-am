@@ -2,9 +2,9 @@
 
 # Script name:  02_predict_glom_cutoffs_V4.sh
 # Description:  Combined pipeline for Glomeromycota V4 cutoff prediction:
-#               1. Build family/genus/species subsets from eukaryome_V4.
-#               2. Compute family master similarity matrix.
-#               3. Predict global cutoffs for family/genus/species.
+#               1. Build order/family/genus/species subsets from eukaryome_V4.
+#               2. Compute order master similarity matrix.
+#               3. Predict global cutoffs for order/family/genus/species.
 # Note:         This script must be run from the project root directory.
 
 set -euo pipefail
@@ -24,8 +24,8 @@ readonly RUN_PARALLEL="yes"
 readonly MAX_PROPORTION=0.5
 readonly SEED=1986
 
-readonly SIM_FILE="$OUT_DIR/glomeromycota_family_V4.sim"
-RANKS=("family" "genus" "species")
+readonly SIM_FILE="$OUT_DIR/glomeromycota_order_V4.sim"
+RANKS=("order" "family" "genus" "species")
 
 mkdir -p "$OUT_DIR" "$TMP_DIR" "$LOG_DIR"
 LOG_FILE="$LOG_DIR/02_predict_glom_cutoffs_V4_$(date +%Y%m%d_%H%M%S).log"
@@ -33,6 +33,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 get_start_thresh() {
     case "$1" in
+        order)  echo "0.9" ;;
         family)  echo "0.9" ;;
         genus)   echo "0.9" ;;
         species) echo "0.9" ;;
@@ -41,6 +42,7 @@ get_start_thresh() {
 
 get_rank_col() {
     case "$1" in
+        order)  echo 5 ;;
         family)  echo 6 ;;
         genus)   echo 7 ;;
         species) echo 8 ;;
@@ -184,12 +186,12 @@ done
 echo ""
 echo "=== STEP 2: COMPUTE MASTER SIM MATRIX ==="
 echo "$(date)"
-family_fasta="$OUT_DIR/glomeromycota_family_V4.fasta"
+order_fasta="$OUT_DIR/glomeromycota_order_V4.fasta"
 
 if [[ -f "$SIM_FILE" ]]; then
     echo "Sim file already exists, reusing: $SIM_FILE"
 else
-    Rscript "$COMPUTE_SIM" --input "$family_fasta" --out "$OUT_DIR" --min_sim 0 --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
+    Rscript "$COMPUTE_SIM" --input "$order_fasta" --out "$OUT_DIR" --min_sim 0 --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
     echo "Sim file written: $SIM_FILE"
 fi
 
