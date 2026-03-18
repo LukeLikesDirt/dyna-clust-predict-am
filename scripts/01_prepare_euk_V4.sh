@@ -38,6 +38,7 @@ readonly NUM_THREADS=10
 readonly MAX_ERROR_RATE=1
 readonly MIN_LEN=440
 readonly MAX_LEN=540
+readonly MAX_N=0
 
 # WANDA/AML2 trimming parameters
 readonly MIN_OVERLAP_FWD=20
@@ -56,6 +57,7 @@ readonly MIN_SEQS_FOR_CONSENSUS=10
 
 # Helper R script
 readonly REFORMAT="./R/reformat.R"
+readonly DEREP_LCA="./R/dereplicate_lca.R"
 
 # =============================================================================
 # DIRECTORY SETUP
@@ -82,6 +84,11 @@ if [[ ! -f "$REFORMAT" ]]; then
     exit 1
 fi
 
+if [[ ! -f "$DEREP_LCA" ]]; then
+    echo "ERROR: R script not found: $DEREP_LCA" >&2
+    exit 1
+fi
+
 # =============================================================================
 # FILE DOWNLOAD: EUKARYOME
 # =============================================================================
@@ -89,20 +96,34 @@ fi
 echo ""
 echo "=== DOWNLOADING EUKARYOME DATABASE ==="
 echo "$(date)"
-echo "URL: $EUKARYOME_URL"
 
-if ! curl -L -o "$DOWNLOAD_FILE" "$EUKARYOME_URL"; then
-    echo "ERROR: Failed to download file from $EUKARYOME_URL" >&2
-    exit 1
+if [[ -f "$DOWNLOAD_FILE" && -f "./tmp/$(basename ${DOWNLOAD_FILE%.gz})" ]]; then
+    echo "Files already exist, skipping download and extraction."
+else
+    # Download if not already present
+    if [[ ! -f "$DOWNLOAD_FILE" ]]; then
+        echo "URL: $EUKARYOME_URL"
+        if ! curl -L -o "$DOWNLOAD_FILE" "$EUKARYOME_URL"; then
+            echo "ERROR: Failed to download file from $EUKARYOME_URL" >&2
+            exit 1
+        fi
+    else
+        echo "Download file already exists, skipping download."
+    fi
+
+    # Extract if not already present
+    if [[ ! -f "./tmp/$(basename ${DOWNLOAD_FILE%.gz})" ]]; then
+        echo "Unzipping downloaded file..."
+        if ! 7z x "$DOWNLOAD_FILE" -o"./tmp/" -y; then
+            echo "ERROR: Failed to unzip $DOWNLOAD_FILE" >&2
+            exit 1
+        fi
+    else
+        echo "Extracted file already exists, skipping extraction."
+    fi
+
+    echo "Download and extraction completed successfully."
 fi
-
-echo "Unzipping downloaded file..."
-if ! 7z x "$DOWNLOAD_FILE" -o"./tmp/" -y; then
-    echo "ERROR: Failed to unzip $DOWNLOAD_FILE" >&2
-    exit 1
-fi
-
-echo "Download and extraction completed successfully."
 echo ""
 
 # =============================================================================
@@ -120,6 +141,8 @@ echo "Output file: $OUT_FASTA"
 echo "Forward primer: $PRIMER_FWD (min overlap: $MIN_OVERLAP_FWD)"
 echo "Reverse primer: $PRIMER_REV (min overlap: $MIN_OVERLAP_REV)"
 echo "Max error rate: $MAX_ERROR_RATE"
+echo "Length range: ${MIN_LEN}-${MAX_LEN}bp"
+echo "Max N bases: $MAX_N"
 echo ""
 
 TRIMMED_WANDA="./tmp/eukaryome_trimmed_wanda_aml2.fasta"
@@ -128,11 +151,11 @@ cutadapt \
   -g "$PRIMER_FWD;min_overlap=$MIN_OVERLAP_FWD;required"..."$PRIMER_REV;min_overlap=$MIN_OVERLAP_REV;required" \
   -e "$MAX_ERROR_RATE" \
   --discard-untrimmed \
-  -M "$MAX_LEN" \
-  -m "$MIN_LEN" \
+  -M "$MAX_LEN" -m "$MIN_LEN" \
+  --max-n "$MAX_N" \
   --cores "$NUM_THREADS" \
   -o "$TRIMMED_WANDA" "$IN_FASTA" \
-  >> "$LOG_FILE" 2>&1
+  >> "$LOG_FILE" 2>&1 < /dev/null
 
 echo "Primer trimming completed."
 if [[ -f "$LOG_FILE" ]]; then
@@ -243,9 +266,10 @@ while read -r phylum; do
       --action=retain \
       --discard-untrimmed \
       -m "$MIN_LEN" -M "$MAX_LEN" \
+      --max-n "$MAX_N" \
       --cores "$NUM_THREADS" \
       -o "$filtered_phylum" "$untrimmed_phylum" \
-      > "${PHYLUM_DIR}/${phylum}_cutadapt.log" 2>&1
+      > "${PHYLUM_DIR}/${phylum}_cutadapt.log" 2>&1 < /dev/null
 
     n_recovered=$(grep -c "^>" "$filtered_phylum" 2>/dev/null || echo 0)
     if [[ "$n_untrimmed" -gt 0 ]]; then
@@ -295,8 +319,8 @@ fi
 echo "Running reformat.R..."
 Rscript "$REFORMAT" \
     --fasta_in           "$PHYLUM_DIR/all_filtered.fasta" \
-    --fasta_out          "$OUT_FASTA" \
-    --classification_out "$OUT_CLASS"
+    --fasta_out          "tmp/reformatted.fasta" \
+    --classification_out "tmp/reformatted.classification"
 
 if [[ $? -ne 0 ]]; then
     echo "ERROR: reformat.R failed." >&2
@@ -304,8 +328,32 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo ""
-echo "Reformatted FASTA written to      : $OUT_FASTA"
-echo "Classification table written to   : $OUT_CLASS"
+echo "Reformatted FASTA written to      : tmp/reformatted.fasta"
+echo "Reformatted classification table  : tmp/reformatted.classification"
+echo ""
+
+# =============================================================================
+# DEREPLICATION WITH LCA ASSIGNMENT
+# =============================================================================
+
+echo ""
+echo "=== DEREPLICATE AND RESOLVE LCA TAXONOMY ==="
+echo "$(date)"
+
+Rscript "$DEREP_LCA" \
+    --fasta_in             "tmp/reformatted.fasta" \
+    --fasta_out            "$OUT_FASTA" \
+    --classification_in    "tmp/reformatted.classification" \
+    --classification_out   "$OUT_CLASS"
+
+if [[ $? -ne 0 ]]; then
+    echo "ERROR: dereplicate_lca.R failed." >&2
+    exit 1
+fi
+
+echo ""
+echo "Dereplicated FASTA with LCA written to : $OUT_FASTA"
+echo "Classification table written to        : $OUT_CLASS"
 echo ""
 
 # =============================================================================
@@ -314,7 +362,7 @@ echo ""
 
 echo "=== CLEANUP ==="
 echo "Removing tmp/ contents..."
-rm -rf tmp/*
+#rm -rf tmp/*
 
 echo ""
 echo "=== PIPELINE COMPLETED SUCCESSFULLY ==="
