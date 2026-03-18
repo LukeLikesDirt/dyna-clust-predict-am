@@ -118,7 +118,9 @@ dereplicate_lca <- function(seqs, cls) {
 
   classification_out <- resolved_tax %>%
     dplyr::select(id, dplyr::all_of(taxonomy_ranks)) %>%
-    dplyr::arrange(id)
+    dplyr::arrange(id) %>%
+    dplyr::mutate(dplyr::across(dplyr::all_of(taxonomy_ranks),
+                                ~ dplyr::if_else(is.na(.x) | .x == "", "unclassified", .x)))
 
   list(seqs = rep_seqs, classification = as.data.frame(classification_out))
 }
