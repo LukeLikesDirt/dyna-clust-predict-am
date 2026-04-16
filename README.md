@@ -14,21 +14,18 @@ clustering using **vsearch global alignment** and
 This repository predicts optimal sequence similarity thresholds for an
 AM-fungi-focused V4 workflow based on EUKARYOME v.20 (Tedersoo *et al.* 2024) SSU input data trimmed to V4 using the WANDA-AML2 primer pair.
 
+Predicted similarity cut-offs from this pipeline are provided in `output/cutoffs_glom_V4.txt` and can be used directly for classification and clustering without re-running the pipelines. Reference sequences and taxonomy (FASTA and classification files) will be made available on Figshare; the README will be updated with links once they are published.
+
+This project builds directly on ideas and implementation patterns from [dnabarcoder](https://github.com/vuthuyduong/dnabarcoder) and [dyna-clust-predict](https://github.com/LukeLikesDirt/dyna-clust-predict)
+
 Main pipelines in this repository:
 
--   `scripts/02_predict_glom_cutoffs_V4.sh`
+- `scripts/02_predict_glom_cutoffs_V4.sh`
   Combined preparation + global cutoff prediction for Glomeromycota at
   family, genus, and species ranks.
--   `scripts/03_predict_euk_cutoffs_V4.sh`
+- `scripts/03_predict_euk_cutoffs_V4.sh`
   Combined preparation + global cutoff prediction for Eukaryome at
   kingdom, phylum, class, and order ranks.
-
-## Attribution
-
-This project builds directly on ideas and implementation patterns from:
-
-- [dnabarcoder](https://github.com/vuthuyduong/dnabarcoder)
-- [dyna-clust-predict](https://github.com/LukeLikesDirt/dyna-clust-predict)
 
 ## Pipeline steps
 

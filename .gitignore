@@ -1,8 +1,5 @@
-# Large data files (large; managed outside git)
-data/*.classification
-data/*.fasta
-data/*.sim
-data/*_pred_id_*
+# Reference data (large files; managed outside git)
+data/
 
 # Temporary working files
 tmp/
