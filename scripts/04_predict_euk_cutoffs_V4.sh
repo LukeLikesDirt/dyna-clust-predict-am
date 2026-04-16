@@ -8,7 +8,7 @@
 #               4. Compute similarity matrices and predict global cutoffs.
 # Note:         This script must be run from the project root directory.
 
-set -euo pipefail
+set -eo pipefail
 
 readonly SUBSET="./R/subset.R"
 readonly COMPUTE_SIM="./R/compute_sim.R"
@@ -24,8 +24,9 @@ readonly END_THRESH=1
 readonly N_CPUS="${SLURM_CPUS_PER_TASK:-$(sysctl -n hw.ncpu 2>/dev/null || nproc)}"
 readonly RUN_PARALLEL="yes"
 readonly MAX_PROPORTION=0.5
-readonly MAX_SEQUENCES_IDS=25000
-readonly MAX_SEQUENCES_PRED=10000
+readonly MIN_SIM=0.8
+readonly MAX_SEQUENCES_IDS=20000
+readonly MAX_SEQUENCES_PRED=20000
 readonly MIN_SUBGROUPS=10
 readonly MIN_SEQUENCES=30
 readonly SEED=1986
@@ -42,6 +43,7 @@ get_start_thresh() {
         phylum)  echo "0.8" ;;
         class)   echo "0.8" ;;
         order)   echo "0.8" ;;
+        family)  echo "0.8" ;;
     esac
 }
 
@@ -51,18 +53,8 @@ get_rank_col() {
         phylum)  echo 3 ;;
         class)   echo 4 ;;
         order)   echo 5 ;;
+        family)  echo 6 ;;
     esac
-}
-
-activate_conda() {
-    set +u
-    if command -v conda >/dev/null 2>&1; then
-        eval "$(conda shell.bash hook)"
-    elif [[ -f "$HOME/.bash_profile" ]]; then
-        source "$HOME/.bash_profile"
-    fi
-    conda activate dyna_clust_predict
-    set -u
 }
 
 subset_fasta_and_classification() {
@@ -167,7 +159,8 @@ writeLines(sampled, '${TMP_DIR}/dominant_ids_sampled.txt')
 }
 
 echo "Activating conda environment..."
-activate_conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate dyna_clust_predict
 
 for f in "$SUBSET" "$COMPUTE_SIM" "$PREDICT" "$V4_FASTA" "$V4_CLASS"; do
     [[ -f "$f" ]] || { echo "ERROR: Required file not found: $f" >&2; exit 1; }
@@ -228,7 +221,7 @@ for rank in "${RANKS[@]}"; do
     downsample_dominant "$maxseq_class" "$maxseq_fasta" "$rank_col" "$MAX_PROPORTION" "$SEED" "$pred_class" "$pred_fasta" || true
     echo "  Final prediction size: $(( $(wc -l < "$pred_class") - 1 ))"
 
-    Rscript "$COMPUTE_SIM" --input "$pred_fasta" --out "$TMP_DIR" --min_sim 0 --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
+    Rscript "$COMPUTE_SIM" --input "$pred_fasta" --out "$TMP_DIR" --min_sim "$MIN_SIM" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
 
     generated_sim="$TMP_DIR/$(basename "${pred_fasta%.*}").sim"
     [[ -f "$generated_sim" ]] || { echo "  FAILED: Expected sim file missing: $generated_sim" >&2; FAILED_RANKS+=("$rank"); continue; }
@@ -269,5 +262,4 @@ echo "$(date)"
 echo "Log file: $LOG_FILE"
 
 echo ""
-set +u
 conda deactivate

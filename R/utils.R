@@ -90,7 +90,7 @@ dereplicate_lca <- function(seqs, cls) {
     resolved <- list()
     for (rank in taxonomy_ranks) {
       vals <- unique(df[[rank]])
-      vals <- vals[!vals %in% c("unidentified", NA)]
+      vals <- vals[!vals %in% c("unidentified", "unclassified", NA, "")]
       if (length(vals) == 1) {
         resolved[[rank]] <- vals
       } else {

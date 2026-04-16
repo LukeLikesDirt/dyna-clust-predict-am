@@ -99,7 +99,7 @@ print(table(species$infraspecific, useNA = "ifany"))
 
 unique_species <- unique(species$species)
 species_split  <- tibble(species_name = unique_species) %>%
-  filter(species_name != "unidentified") %>%
+  filter(species_name != "unclassified") %>%
   mutate(
     genus_part   = str_extract(species_name, "^\\S+"),
     epithet_part = str_remove(species_name, "^\\S+\\s*")
@@ -111,8 +111,7 @@ infraspecific_candidates <- species_split %>%
 
 cat("\nSpecies with potential infraspecific annotations:", length(infraspecific_candidates), "\n")
 if (length(infraspecific_candidates) > 0) {
-  cat("First 20:\n")
-  print(head(infraspecific_candidates, 20))
+  print(infraspecific_candidates)
 }
 
 unique_abbr <- species_split %>%
@@ -128,9 +127,11 @@ print(unique_abbr)
 species <- species %>%
   mutate(
     species = case_when(
-      species == "Oryza sativa.Indica"            ~ "Oryza sativa",
-      species == "Oryza sativa.Japonica"           ~ "Oryza sativa",
-      species == "Marchandiomyces nt59.1784"       ~ "Marchandiomyces unidentified",
+      species == "Epiglossum proliferumA????A"        ~ "Epiglossum proliferum",
+      species == "Alsidium seaforthiiA????A"          ~ "Alsidium seaforthii",
+      species == "Synchaeta tremula/oblonga"          ~ "unclassified",
+      species == "Goniodes dissimilis/gigas"          ~ "unclassified",
+      species == "Leptosphaeria biglobosa.'thlaspii'" ~ "Leptosphaeria biglobosa",
       TRUE ~ species
     )
   )
@@ -141,8 +142,8 @@ cat("\nReconstructing classification file...\n")
 
 taxa_updated <- taxa %>%
   select(-species) %>%
-  left_join(species %>% select(id, species, infraspecific), by = "id") %>%
-  select(id, kingdom, phylum, class, order, family, genus, species, infraspecific)
+  left_join(species %>% select(id, species,), by = "id") %>%
+  select(id, kingdom, phylum, class, order, family, genus, species)
 
 fwrite(taxa_updated, class_out, sep = "\t")
 

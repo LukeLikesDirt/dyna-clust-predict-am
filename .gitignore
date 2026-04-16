@@ -3,6 +3,7 @@ data/
 
 # Temporary working files
 tmp/
+drafts/
 
 # Test files and code
 test/
