@@ -437,7 +437,7 @@ vsearch \
   --matched    tmp/overlap_partial_in_full.fasta \
   --notmatched tmp/unique_partial.fasta \
   --userout    tmp/usearch_overlap.txt \
-  --userfields query+target+id+ql+tl+alnlen+qcov+tcov \
+  --userfields query+target+id+ql+tl+alnlen+qcov+tcov+ids \
   --threads "$NUM_THREADS" \
   2> tmp/logfile_usearch_overlap.txt
 
