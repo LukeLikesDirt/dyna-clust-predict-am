@@ -1,9 +1,0 @@
-rank	higher_rank	dataset	cut-off	confidence	sequence number	group number	max proportion	dataset_info
-kingdom	global	All	0.800	0.9355	10000	10	0.4287	EUKARYOME SSU v2.0 (all eukaryotes trimmed to WANDA-AML2)
-phylum	global	All	0.950	0.8151	10000	39	0.3393	EUKARYOME SSU v2.0 (all eukaryotes trimmed to WANDA-AML2)
-class	global	All	0.950	0.7936	10000	87	0.3179	EUKARYOME SSU v2.0 (all eukaryotes trimmed to WANDA-AML2)
-order	global	All	0.950	0.6928	10000	336	0.2632	EUKARYOME SSU v2.0 (all eukaryotes trimmed to WANDA-AML2)
-family	global	All	0.950	0.9319	3356	17	0.5000	EUKARYOME SSU v2.0 (Glomeromycota subset trimmed to WANDA-AML2)
-genus	global	All	0.975	0.7961	7300	44	0.2679	EUKARYOME SSU v2.0 (Glomeromycota subset trimmed to WANDA-AML2)
-species	global	All	0.990	0.6315	488	127	0.0861	EUKARYOME SSU v2.0 (Glomeromycota subset trimmed to WANDA-AML2)
-

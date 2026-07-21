@@ -1,0 +1,7 @@
+rank	higher_rank	dataset	cut-off	confidence	sequence number	group number	max proportion	dataset_info
+family	global	Glomeromycota	0.951	0.8971	776	18	0.5	EUKARYOME SSU v2.0 (Glomeromycota subset trimmed to WANDA-AML2)
+genus	global	Glomeromycota	0.981	0.7383	1082	56	0.1996	EUKARYOME SSU v2.0 (Glomeromycota subset trimmed to WANDA-AML2)
+species	global	Glomeromycota	0.995	0.6315	289	96	0.0865	EUKARYOME SSU v2.0 (Glomeromycota subset trimmed to WANDA-AML2)
+family	global	Endogonomycetes	0.972	0.8826	263	23	0.2167	EUKARYOME SSU v2.0 (Endogonomycetes subset trimmed to WANDA-AML2)
+genus	global	Endogonomycetes	0.983	0.9041	191	26	0.1518	EUKARYOME SSU v2.0 (Endogonomycetes subset trimmed to WANDA-AML2)
+species	global	Endogonomycetes	0.997	0.8056	35	14	0.1714	EUKARYOME SSU v2.0 (Endogonomycetes subset trimmed to WANDA-AML2)
