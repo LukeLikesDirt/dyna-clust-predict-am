@@ -22,8 +22,15 @@ Main pipelines in this repository:
 
 - `scripts/02_predict_glom_cutoffs_V4.sh`
   Combined preparation + global cutoff prediction for Glomeromycota at
-  family, genus, and species ranks.
-- `scripts/03_predict_euk_cutoffs_V4.sh`
+  order, family, genus, and species ranks.
+- `scripts/03_predict_endo_cutoffs_V4.sh`
+  Combined preparation + global cutoff prediction for Endogonomycetes
+  (class within phylum Mucoromycota) at order, family, genus, and species
+  ranks, following Tedersoo *et al.* (2024).
+- `scripts/04_predict_fun_cutoffs_V4.sh`
+  Combined preparation + global cutoff prediction for Fungi at
+  phylum, class, order, family, genus, and species ranks.
+- `scripts/05_predict_euk_cutoffs_V4.sh`
   Combined preparation + global cutoff prediction for Eukaryome at
   kingdom, phylum, class, and order ranks.
 
@@ -34,13 +41,34 @@ Main pipelines in this repository:
 
   `scripts/02_predict_glom_cutoffs_V4.sh`   Build Glomeromycota subsets,
                                             compute similarity matrix,
-                                            predict global family/genus/species cutoffs
+                                            predict global order/family/genus/species cutoffs
 
-  `scripts/03_predict_euk_cutoffs_V4.sh`    Build Eukaryome subsets
-                                            Icompute similarity matrix,
+  `scripts/03_predict_endo_cutoffs_V4.sh`   Build Endogonomycetes subsets,
+                                            compute similarity matrix,
+                                            predict global order/family/genus/species cutoffs
+
+  `scripts/04_predict_fun_cutoffs_V4.sh`    Build Fungi subsets,
+                                            compute similarity matrix,
+                                            predict global phylum/class/order/family/genus/species cutoffs
+
+  `scripts/05_predict_euk_cutoffs_V4.sh`    Build Eukaryome subsets,
+                                            compute similarity matrix,
                                             predict global kingdom/phylum/class/order cutoffs
 
 All scripts must be run from the **project root directory**.
+
+### Alphanumeric taxon codes (Endogonomycetes and Glomeromycota)
+
+Tedersoo *et al.* (2024, *MycoKeys* 107: 273–325) propose an alphanumeric
+coding system (e.g. `Densosporales.fam02.gen01`) to communicate undescribed
+family- and genus-level groups in Glomeromycota and Endogonomycetes ahead of
+formal description. Since the paper's authors also curate EUKARYOME, these
+codes appear directly in EUKARYOME's placeholder taxonomy fields.
+`R/reformat.R` preserves these codes (converting `.` to `_`, e.g.
+`Densosporales_fam02_gen01`) rather than collapsing them to "unidentified",
+so they are retained as usable taxonomic groups throughout the pipeline.
+Genuine unplaced/incertae sedis placeholders (e.g. `.reg` codes) are still
+treated as unidentified.
 
 ### R modules
 

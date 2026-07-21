@@ -1,11 +1,10 @@
 #!/bin/bash
 
-# Script name:  03_predict_fun_cutoffs_V4.sh
-# Description:  Combined pipeline for Fungi V4 cutoff prediction:
-#               1. Build phylum/class/order/family/genus/species subsets from eukaryome_V4
-#                  for sequences with kingdom == Fungi and identified phylum.
-#               2. Compute phylum master similarity matrix (min_sim = 0.8).
-#               3. Predict global cutoffs for phylum/class/order/family/genus/species.
+# Script name:  03_predict_endo_cutoffs_V4.sh
+# Description:  Combined pipeline for Endogonomycetes V4 cutoff prediction:
+#               1. Build order/family/genus/species subsets from eukaryome_V4.
+#               2. Compute order master similarity matrix.
+#               3. Predict global cutoffs for order/family/genus/species.
 # Note:         This script must be run from the project root directory.
 
 set -eo pipefail
@@ -17,7 +16,7 @@ readonly PREDICT="./R/predict.R"
 readonly OUT_DIR="./data"
 readonly TMP_DIR="./tmp"
 readonly LOG_DIR="./logs"
-readonly PREFIX="fungi"
+readonly PREFIX="endogonomycetes"
 readonly STEP=0.001
 readonly END_THRESH=1
 readonly MIN_SIM=0.8
@@ -26,18 +25,16 @@ readonly RUN_PARALLEL="yes"
 readonly MAX_PROPORTION=0.5
 readonly SEED=1986
 
-readonly SIM_FILE="$OUT_DIR/fungi_phylum_V4.sim"
-RANKS=("phylum" "class" "order" "family" "genus" "species")
+readonly SIM_FILE="$OUT_DIR/endogonomycetes_order_V4.sim"
+RANKS=("order" "family" "genus" "species")
 
 mkdir -p "$OUT_DIR" "$TMP_DIR" "$LOG_DIR"
-LOG_FILE="$LOG_DIR/03_predict_fun_cutoffs_V4_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="$LOG_DIR/03_predict_endo_cutoffs_V4_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 get_start_thresh() {
     case "$1" in
-        phylum)  echo "0.8" ;;
-        class)   echo "0.8" ;;
-        order)   echo "0.8" ;;
+        order)  echo "0.8" ;;
         family)  echo "0.8" ;;
         genus)   echo "0.8" ;;
         species) echo "0.8" ;;
@@ -46,9 +43,7 @@ get_start_thresh() {
 
 get_rank_col() {
     case "$1" in
-        phylum)  echo 3 ;;
-        class)   echo 4 ;;
-        order)   echo 5 ;;
+        order)  echo 5 ;;
         family)  echo 6 ;;
         genus)   echo 7 ;;
         species) echo 8 ;;
@@ -145,65 +140,49 @@ for f in "$V4_FASTA" "$V4_CLASS" "$COMPUTE_SIM" "$PREDICT"; do
 done
 
 echo ""
-echo "=== STEP 1: PREPARE FUNGI SUBSETS ==="
+echo "=== STEP 1: PREPARE ENDOGONOMYCETES SUBSETS ==="
 echo "$(date)"
 
-fun_all_class="$TMP_DIR/fungi_all.classification"
-fun_all_fasta="$TMP_DIR/fungi_all.fasta"
+endo_class="$TMP_DIR/endogonomycetes_all.classification"
+endo_fasta="$TMP_DIR/endogonomycetes_all.fasta"
 
-awk_tmp_ids="$TMP_DIR/fun_ids.txt"
-awk -F'\t' 'NR == 1 || $2 == "Fungi"' "$V4_CLASS" > "$fun_all_class"
-tail -n+2 "$fun_all_class" | cut -f1 > "$awk_tmp_ids"
-seqkit grep -f "$awk_tmp_ids" "$V4_FASTA" > "$fun_all_fasta"
+endo_tmp_ids="$TMP_DIR/endo_ids.txt"
+awk -F'\t' 'NR == 1 || $4 == "Endogonomycetes"' "$V4_CLASS" > "$endo_class"
+tail -n+2 "$endo_class" | cut -f1 > "$endo_tmp_ids"
+seqkit grep -f "$endo_tmp_ids" "$V4_FASTA" > "$endo_fasta"
 
-fun_n=$(tail -n+2 "$fun_all_class" | wc -l | tr -d ' ')
-echo "Fungi sequences (kingdom filter): $fun_n"
-
-# Build phylum-identified base: all subsequent rank subsets are derived from this.
-echo ""
-echo "Building phylum-identified base dataset"
-phylum_col=$(get_rank_col "phylum")
-phylum_base_class="$OUT_DIR/fungi_phylum_V4.classification"
-phylum_base_fasta="$OUT_DIR/fungi_phylum_V4.fasta"
-phylum_ids="$TMP_DIR/phylum_ids.txt"
-
-filter_identified_classification "$fun_all_class" "$phylum_col" "$phylum_base_class"
-tail -n+2 "$phylum_base_class" | cut -f1 > "$phylum_ids"
-seqkit grep -f "$phylum_ids" "$fun_all_fasta" > "$phylum_base_fasta"
-
-fun_phylum_n=$(tail -n+2 "$phylum_base_class" | wc -l | tr -d ' ')
-echo "Fungi sequences (phylum-identified): $fun_phylum_n"
+endo_n=$(tail -n+2 "$endo_class" | wc -l | tr -d ' ')
+echo "Endogonomycetes sequences: $endo_n"
 
 echo ""
 echo "Filtering with is_identified() logic from R/utils.R"
 printf "%-10s %8s %8s  %-50s\n" "Rank" "Input" "Kept" "Output files"
 echo "---------------------------------------------------------------------------------"
-printf "%-10s %8s %8s  %s, %s\n" "phylum" "$fun_n" "$fun_phylum_n" \
-    "$(basename "$phylum_base_fasta")" "$(basename "$phylum_base_class")"
 
-for rank in "class" "order" "family" "genus" "species"; do
+for rank in "${RANKS[@]}"; do
     col=$(get_rank_col "$rank")
-    out_fasta="$OUT_DIR/fungi_${rank}_V4.fasta"
-    out_class="$OUT_DIR/fungi_${rank}_V4.classification"
+    out_fasta="$OUT_DIR/endogonomycetes_${rank}_V4.fasta"
+    out_class="$OUT_DIR/endogonomycetes_${rank}_V4.classification"
     ids_file="$TMP_DIR/${rank}_ids.txt"
 
-    filter_identified_classification "$phylum_base_class" "$col" "$out_class"
+    filter_identified_classification "$endo_class" "$col" "$out_class"
     tail -n+2 "$out_class" | cut -f1 > "$ids_file"
-    seqkit grep -f "$ids_file" "$phylum_base_fasta" > "$out_fasta"
+    seqkit grep -f "$ids_file" "$endo_fasta" > "$out_fasta"
 
     n_kept=$(tail -n+2 "$out_class" | wc -l | tr -d ' ')
-    printf "%-10s %8s %8s  %s, %s\n" "$rank" "$fun_phylum_n" "$n_kept" \
+    printf "%-10s %8s %8s  %s, %s\n" "$rank" "$endo_n" "$n_kept" \
         "$(basename "$out_fasta")" "$(basename "$out_class")"
 done
 
 echo ""
 echo "=== STEP 2: COMPUTE MASTER SIM MATRIX ==="
 echo "$(date)"
+order_fasta="$OUT_DIR/endogonomycetes_order_V4.fasta"
 
 if [[ -f "$SIM_FILE" ]]; then
     echo "Sim file already exists, reusing: $SIM_FILE"
 else
-    Rscript "$COMPUTE_SIM" --input "$phylum_base_fasta" --out "$OUT_DIR" --min_sim "$MIN_SIM" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
+    Rscript "$COMPUTE_SIM" --input "$order_fasta" --out "$OUT_DIR" --min_sim "$MIN_SIM" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
     echo "Sim file written: $SIM_FILE"
 fi
 
@@ -215,8 +194,8 @@ echo "Ranks      : ${RANKS[*]}"
 
 FAILED_RANKS=()
 for rank in "${RANKS[@]}"; do
-    rank_fasta="$OUT_DIR/fungi_${rank}_V4.fasta"
-    rank_class="$OUT_DIR/fungi_${rank}_V4.classification"
+    rank_fasta="$OUT_DIR/endogonomycetes_${rank}_V4.fasta"
+    rank_class="$OUT_DIR/endogonomycetes_${rank}_V4.classification"
     st=$(get_start_thresh "$rank")
 
     pred_fasta="$rank_fasta"
@@ -227,8 +206,8 @@ for rank in "${RANKS[@]}"; do
     echo "Start threshold: $st"
 
     if [[ "$rank" == "family" ]]; then
-        ds_fasta="$TMP_DIR/fungi_family_downsampled.fasta"
-        ds_class="$TMP_DIR/fungi_family_downsampled.classification"
+        ds_fasta="$TMP_DIR/endogonomycetes_family_downsampled.fasta"
+        ds_class="$TMP_DIR/endogonomycetes_family_downsampled.classification"
         downsample_dominant "$rank_class" "$rank_fasta" "$(get_rank_col "$rank")" "$MAX_PROPORTION" "$SEED" "$ds_class" "$ds_fasta" || true
         pred_fasta="$ds_fasta"
         pred_class="$ds_class"
@@ -253,9 +232,9 @@ done
 
 echo ""
 echo "=== CLEANUP ==="
-rm -f "$TMP_DIR/fun_ids.txt" "$TMP_DIR"/*_ids.txt \
-      "$TMP_DIR/fungi_all.classification" "$TMP_DIR/fungi_all.fasta" \
-      "$TMP_DIR/fungi_family_downsampled.fasta" "$TMP_DIR/fungi_family_downsampled.classification"
+rm -f "$TMP_DIR/endo_ids.txt" "$TMP_DIR"/*_ids.txt \
+      "$TMP_DIR/endogonomycetes_all.classification" "$TMP_DIR/endogonomycetes_all.fasta" \
+      "$TMP_DIR/endogonomycetes_family_downsampled.fasta" "$TMP_DIR/endogonomycetes_family_downsampled.classification"
 
 echo ""
 if [[ ${#FAILED_RANKS[@]} -gt 0 ]]; then

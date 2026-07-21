@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script name:  03_predict_euk_cutoffs_V4.sh
+# Script name:  05_predict_euk_cutoffs_V4.sh
 # Description:  Combined pipeline for Eukaryome V4 global cutoff prediction:
 #               1. Generate only global ID files for kingdom/phylum/class/order.
 #               2. Subset FASTA/classification on the fly per rank.
@@ -34,7 +34,7 @@ readonly SEED=1986
 RANKS=("kingdom" "phylum" "class" "order")
 
 mkdir -p "$TMP_DIR" "$LOG_DIR" "$DATA_DIR"
-LOG_FILE="$LOG_DIR/03_predict_euk_cutoffs_V4_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="$LOG_DIR/05_predict_euk_cutoffs_V4_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 get_start_thresh() {
