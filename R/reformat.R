@@ -113,11 +113,14 @@ classification_df <- fasta_df %>%
       ~ ifelse(str_detect(.x, "cf\\.|nr\\.|aff\\.|nov\\.inval\\.|\\.reg"),
                "unidentified", .x)
     ),
-    phylum = ifelse(grepl("\\.phy", phylum), "unidentified", phylum),
-    class  = ifelse(grepl("\\.cl",  class),  "unidentified", class),
-    order  = ifelse(grepl("\\.ord", order),  "unidentified", order),
-    family = ifelse(grepl("\\.fam", family), "unidentified", family),
-    genus  = ifelse(grepl("\\.gen", genus),  "unidentified", genus)
+    # Preserve alphanumeric placeholder codes (e.g. Densosporales.fam02.gen01)
+    # per Tedersoo et al. (2024, MycoKeys 107), converting "." to "_" so the
+    # labels survive downstream taxonomy-string parsing (e.g. FASTA headers).
+    phylum = ifelse(grepl("\\.phy", phylum), str_replace_all(phylum, "\\.", "_"), phylum),
+    class  = ifelse(grepl("\\.cl",  class),  str_replace_all(class,  "\\.", "_"), class),
+    order  = ifelse(grepl("\\.ord", order),  str_replace_all(order,  "\\.", "_"), order),
+    family = ifelse(grepl("\\.fam", family), str_replace_all(family, "\\.", "_"), family),
+    genus  = ifelse(grepl("\\.gen", genus),  str_replace_all(genus,  "\\.", "_"), genus)
   ) %>%
   # Strip parentheses from genus names that are fully wrapped, e.g. (Aleuria) -> Aleuria.
   # Leaves disambiguation suffixes intact, e.g. Galeropsis(Fungi) is unchanged.
