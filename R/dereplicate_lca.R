@@ -7,9 +7,9 @@
 #
 # Usage:
 #   Rscript dereplicate_lca.R \
-#     --fasta_in              data/full_ITS/eukaryome_ITS.fasta \
+#     --fasta_in              data/full_ITS/eukaryome_ITS_filtered.fasta \
 #     --fasta_out             data/full_ITS/eukaryome_ITS_dereplicated.fasta \
-#     --classification_in     data/full_ITS/eukaryome_ITS.classification \
+#     --classification_in     data/full_ITS/eukaryome_ITS_filtered.classification \
 #     --classification_out    data/full_ITS/eukaryome_ITS_dereplicated.classification
 #
 # Note: This script must be run from the project root directory.
