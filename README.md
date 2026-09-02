@@ -70,10 +70,13 @@ Glomeromycota/Endogonomycetes family/genus groups (e.g.
 `R/utils.R` -- `is_identified()` and shared helpers
 `R/reformat.R` -- FASTA header parsing, taxonomy extraction
 `R/check_annotations.R` -- infraspecific annotation standardisation
+`R/dereplicate_lca.R` -- collapses identical sequences, resolves taxonomy to the LCA
+`R/combine_lca.R` -- merges the full and partial reference sets, resolving overlaps by LCA
 `R/subset.R` -- balanced taxon subsampling (used by Eukaryome only)
 `R/compute_sim.R` -- pairwise similarity via vsearch
 `R/predict.R` -- cut-off prediction
 `R/combine_cutoffs.R` -- combines per-taxon predictions (invoke via `05_combine_cutoffs.sh`)
+`R/consolidate_cutoffs.R` -- gap-filling and monotonicity repair for nested cut-off tables (not currently used by the pipeline)
 
 Superseded pre-refactor scripts are in `scripts/backups/` (untracked).
 
