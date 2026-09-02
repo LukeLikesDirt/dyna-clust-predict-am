@@ -1,88 +1,81 @@
 # dyna-clust-predict-am
 
-`dyna-clust-predict-am` is a **special-use adaptation** of
-`dyna-clust-predict` for predicting similarity cut-offs in
-**arbuscular mycorrhizal (AM) fungi** using the
-**SSU V4 WANDA-AML2 fragment**.
+Predicts sequence similarity cut-offs for classifying/clustering
+**arbuscular mycorrhizal (AM) fungi**, using **vsearch global alignment**
+and **F-measure optimisation** (following Vu *et al.* 2022). A special-use
+adaptation of `dyna-clust-predict`, parameterised for AM fungi and specific V4 primer pairs.
 
-It predicts optimal sequence similarity cut-offs for classification and
-clustering using **vsearch global alignment** and
-**F-measure optimisation**, following Vu *et al.* (2022).
+Reference: EUKARYOME SSU v2.0 (Tedersoo *et al.* 2024), trimmed to each primer-pair amplicon.
 
-## Overview
+## Primer pairs
 
-This repository predicts optimal sequence similarity thresholds for an
-AM-fungi-focused V4 workflow based on EUKARYOME v.20 (Tedersoo *et al.* 2024) SSU input data trimmed to V4 using the WANDA-AML2 primer pair.
+| Name | Primers | Amplicon | Length window |
+|---|---|---|---|
+| `wanda_aml2` | WANDA (5'-CAGCCGCGGTAATTCCAGCT-3'); AML2 (5'-GAACCCAAACACTTTGGTTTCC-3') | SSU V4 | 440-540bp |
+| `amv45nf_amdgr` | AMV4.5NF (5'-AAGCTCGTAGTTGAATTTCG-3'); AMDGR (5'-CCCAACTATCCCTATTAATCAT-3') | SSU V4 (nested) | 150-280bp |
 
-Predicted similarity cut-offs from this pipeline are provided in `output/cutoffs_glom_V4.txt` and can be used directly for classification and clustering without re-running the pipelines. Reference sequences and taxonomy (FASTA and classification files) will be made available on Figshare; the README will be updated with links once they are published.
+Scales to new primer pairs -- see "Adding a primer
+pair" below.
 
-This project builds directly on ideas and implementation patterns from [dnabarcoder](https://github.com/vuthuyduong/dnabarcoder) and [dyna-clust-predict](https://github.com/LukeLikesDirt/dyna-clust-predict)
+## Output
 
-Main pipelines in this repository:
+`output/cutoffs_am.txt` -- master table, every primer pair, every dataset
+(Glomeromycota, Endogonomycetes, Eukaryome), family/genus/species.
+`output/cutoffs_am_<primer_set>.txt` -- same, one primer pair only.
 
-- `scripts/02_predict_glom_cutoffs_V4.sh`
-  Combined preparation + global cutoff prediction for Glomeromycota at
-  order, family, genus, and species ranks.
-- `scripts/03_predict_endo_cutoffs_V4.sh`
-  Combined preparation + global cutoff prediction for Endogonomycetes
-  (class within phylum Mucoromycota) at order, family, genus, and species
-  ranks, following Tedersoo *et al.* (2024).
-- `scripts/04_predict_fun_cutoffs_V4.sh`
-  Combined preparation + global cutoff prediction for Fungi at
-  phylum, class, order, family, genus, and species ranks.
-- `scripts/05_predict_euk_cutoffs_V4.sh`
-  Combined preparation + global cutoff prediction for Eukaryome at
-  kingdom, phylum, class, and order ranks.
+Columns: `rank`, `higher_rank`, `dataset`, `cut-off`,
+`confidence`, `sequence number`, `group number`, `max proportion`,
+`primers`, `primer_string`.
 
-## Pipeline steps
+Glomeromycota and Endogonomycetes cut-offs give lineage-specific thresholds for classifying and clustering AM fungi. Eukaryome cut-offs (global, across all eukaryotes) are a rough fallback threshold for everything else in a metabarcoding dataset — non-target taxa that still need clustering/classification before they're filtered out.
 
-  `scripts/01_prepare_euk_V4.sh`            Download EUKARYOME and extract full-legth V4
-                                            fragments covering WANDA-AML2
+## Pipeline
 
-  `scripts/02_predict_glom_cutoffs_V4.sh`   Build Glomeromycota subsets,
-                                            compute similarity matrix,
-                                            predict global order/family/genus/species cutoffs
+Run from the project root.
 
-  `scripts/03_predict_endo_cutoffs_V4.sh`   Build Endogonomycetes subsets,
-                                            compute similarity matrix,
-                                            predict global order/family/genus/species cutoffs
+| Script | Does |
+|---|---|
+| `01_prepare_reference.sh <primer_set>` | Download EUKARYOME (once, shared), trim to the primer pair -> `data/<primer_set>/` |
+| `02_predict_cutoffs.sh <primer_set> <taxon>` | Subset by taxon, compute similarity, predict cut-offs per rank |
+| `03_predict_euk_cutoffs.sh <primer_set>` | Global cut-offs across all Eukaryota (balanced hierarchical sampling, `R/subset.R`) |
+| `05_combine_cutoffs.sh` | Combine every primer pair/taxon found into `output/cutoffs_am*.txt` |
+| `run_all.sh <primer_set> [taxon ...]` | Runs 01 -> 02 (each taxon) -> 03 for one primer pair |
 
-  `scripts/04_predict_fun_cutoffs_V4.sh`    Build Fungi subsets,
-                                            compute similarity matrix,
-                                            predict global phylum/class/order/family/genus/species cutoffs
+Taxon groups run through 02: glomeromycota, endogonomycetes. Eukaryome uses a per-rank similarity matrix instead of one shared matrix, so it has its own script and config (03_predict_euk_cutoffs.sh, config/taxa/eukaryome.conf) rather than going through 02.
 
-  `scripts/05_predict_euk_cutoffs_V4.sh`    Build Eukaryome subsets,
-                                            compute similarity matrix,
-                                            predict global kingdom/phylum/class/order cutoffs
+### Adding a primer pair
 
-All scripts must be run from the **project root directory**.
+1. `config/primers/<name>.conf` (copy an existing one). Calibrate the
+   length window empirically -- see the comment in
+   `config/primers/amv45nf_amdgr.conf`. Set `PRIMER_LABEL` to
+   `"<forward name>–<reverse name>"` (en dash).
+2. `scripts/run_all.sh <name>`
+3. `scripts/05_combine_cutoffs.sh` -- auto-discovers the new primer set.
 
-### Alphanumeric taxon codes (Endogonomycetes and Glomeromycota)
+### Adding a taxon group
 
-Tedersoo *et al.* (2024, *MycoKeys* 107: 273–325) propose an alphanumeric
-coding system (e.g. `Densosporales.fam02.gen01`) to communicate undescribed
-family- and genus-level groups in Glomeromycota and Endogonomycetes ahead of
-formal description. Since the paper's authors also curate EUKARYOME, these
-codes appear directly in EUKARYOME's placeholder taxonomy fields.
-`R/reformat.R` preserves these codes (converting `.` to `_`, e.g.
-`Densosporales_fam02_gen01`) rather than collapsing them to "unidentified",
-so they are retained as usable taxonomic groups throughout the pipeline.
-Genuine unplaced/incertae sedis placeholders (e.g. `.reg` codes) are still
-treated as unidentified.
+`config/taxa/<name>.conf` (copy an existing one). `CASCADE_BASE_RANK`
+empty = filter directly from the taxon match (Glomeromycota,
+Endogonomycetes); set to e.g. `"phylum"` to require identification at a
+coarser rank first before going finer (Fungi).
 
-### R modules
+## Alphanumeric taxon codes
 
-  `R/utils.R`               Shared utility functions (e.g., `is_identified()`)
+Tedersoo *et al.* (2024) assign alphanumeric codes to undescribed
+Glomeromycota/Endogonomycetes family/genus groups (e.g.
+`Densosporales.fam02.gen01`). `R/reformat.R` keeps these as usable taxa. Incertae sedis placeholders collapse into "unidentified", since one incertae sedis label can lump together several unrelated groups under the same parent.
 
-  `R/reformat.R`            FASTA header parsing and taxonomy extraction
+## R modules
 
-  `R/check_annotations.R`   Infraspecific annotation standardisation
+`R/utils.R` -- `is_identified()` and shared helpers
+`R/reformat.R` -- FASTA header parsing, taxonomy extraction
+`R/check_annotations.R` -- infraspecific annotation standardisation
+`R/subset.R` -- balanced taxon subsampling (used by Eukaryome only)
+`R/compute_sim.R` -- pairwise similarity via vsearch
+`R/predict.R` -- cut-off prediction
+`R/combine_cutoffs.R` -- combines per-taxon predictions (invoke via `05_combine_cutoffs.sh`)
 
-  `R/subset.R`              Balanced taxon subset generation
-
-  `R/compute_sim.R`         Pairwise similarity computation using vsearch
-
-  `R/predict.R`             Cut-off prediction (parallel or sequential)
+Superseded pre-refactor scripts are in `scripts/backups/` (untracked).
 
 ## Citations
 
