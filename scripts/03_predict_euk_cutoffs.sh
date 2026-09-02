@@ -1,51 +1,72 @@
 #!/bin/bash
 
-# Script name:  05_predict_euk_cutoffs_V4.sh
-# Description:  Combined pipeline for Eukaryome V4 global cutoff prediction:
-#               1. Generate only global ID files for kingdom/phylum/class/order.
-#               2. Subset FASTA/classification on the fly per rank.
-#               3. Enforce max sequences and dominant-taxon cap.
-#               4. Compute similarity matrices and predict global cutoffs.
-# Note:         This script must be run from the project root directory.
+# Script name:  03_predict_euk_cutoffs.sh
+# Description:  Global (all-kingdom) cutoff prediction for one primer set,
+#               using R/subset.R's balanced hierarchical sampling instead of
+#               02_predict_cutoffs.sh's single-taxon-filter approach:
+#               1. Generate global ID files per rank (balanced budget
+#                  allocation across the full taxonomic hierarchy).
+#               2. Subset FASTA/classification per rank, cap sequence count,
+#                  cap dominant-taxon proportion.
+#               3. Compute a per-rank similarity matrix (not reused across
+#                  ranks -- each rank has its own subsample) and predict.
+#
+#               Genuinely different algorithm from 02_predict_cutoffs.sh
+#               (which reuses one sim matrix across ranks and filters by a
+#               single taxon column), so it isn't folded into that script.
+#
+# Usage:        scripts/03_predict_euk_cutoffs.sh <primer_set>
+#               e.g. scripts/03_predict_euk_cutoffs.sh wanda_aml2
+#
+# Note:         This script must be run from the project root directory,
+#               after 01_prepare_reference.sh <primer_set> has completed.
+#               Taxon parameters live in config/taxa/eukaryome.conf.
 
 set -eo pipefail
+
+# =============================================================================
+# ARGUMENTS AND CONFIG
+# =============================================================================
+
+PRIMER_SET="${1:?Usage: $0 <primer_set>}"
+
+PRIMER_CONF="./config/primers/${PRIMER_SET}.conf"
+TAXON_CONF="./config/taxa/eukaryome.conf"
+
+for f in "$PRIMER_CONF" "$TAXON_CONF"; do
+    if [[ ! -f "$f" ]]; then
+        echo "ERROR: Config not found: $f" >&2
+        exit 1
+    fi
+done
+
+# shellcheck source=/dev/null
+source "$PRIMER_CONF"
+# shellcheck source=/dev/null
+source "$TAXON_CONF"
 
 readonly SUBSET="./R/subset.R"
 readonly COMPUTE_SIM="./R/compute_sim.R"
 readonly PREDICT="./R/predict.R"
-readonly DATA_DIR="./data"
-readonly V4_FASTA="$DATA_DIR/eukaryome_V4.fasta"
-readonly V4_CLASS="$DATA_DIR/eukaryome_V4.classification"
+readonly V4_FASTA="./data/${PRIMER_SET}/eukaryome_full.fasta"
+readonly V4_CLASS="./data/${PRIMER_SET}/eukaryome_full.classification"
+readonly DATA_DIR="./data/${PRIMER_SET}"
 readonly TMP_DIR="./tmp"
-readonly LOG_DIR="./logs"
-readonly PREFIX="eukaryome"
-readonly STEP=0.001
+readonly LOG_DIR="./logs/${PRIMER_SET}"
 readonly END_THRESH=1
+readonly STEP=0.001
 readonly N_CPUS="${SLURM_CPUS_PER_TASK:-$(sysctl -n hw.ncpu 2>/dev/null || nproc)}"
 readonly RUN_PARALLEL="yes"
-readonly MAX_PROPORTION=0.5
-readonly MIN_SIM=0.8
-readonly MAX_SEQUENCES_IDS=20000
-readonly MAX_SEQUENCES_PRED=20000
-readonly MIN_SUBGROUPS=10
-readonly MIN_SEQUENCES=30
-readonly SEED=1986
 
-RANKS=("kingdom" "phylum" "class" "order")
-
-mkdir -p "$TMP_DIR" "$LOG_DIR" "$DATA_DIR"
-LOG_FILE="$LOG_DIR/05_predict_euk_cutoffs_V4_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p "$DATA_DIR" "$TMP_DIR" "$LOG_DIR"
+LOG_FILE="$LOG_DIR/03_predict_${TAXON_PREFIX}_cutoffs_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-get_start_thresh() {
-    case "$1" in
-        kingdom) echo "0.8" ;;
-        phylum)  echo "0.8" ;;
-        class)   echo "0.8" ;;
-        order)   echo "0.8" ;;
-        family)  echo "0.8" ;;
-    esac
-}
+echo "=============================================================================="
+echo "PREDICTING CUTOFFS: $TAXON_LABEL, primer set = $PRIMER_SET_NAME"
+echo "  Ranks:   ${RANKS[*]}"
+echo "  MIN_SIM: $MIN_SIM"
+echo "=============================================================================="
 
 get_rank_col() {
     case "$1" in
@@ -54,6 +75,9 @@ get_rank_col() {
         class)   echo 4 ;;
         order)   echo 5 ;;
         family)  echo 6 ;;
+        genus)   echo 7 ;;
+        species) echo 8 ;;
+        *) echo "ERROR: unknown rank '$1'" >&2; exit 1 ;;
     esac
 }
 
@@ -163,7 +187,7 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate dyna_clust_predict
 
 for f in "$SUBSET" "$COMPUTE_SIM" "$PREDICT" "$V4_FASTA" "$V4_CLASS"; do
-    [[ -f "$f" ]] || { echo "ERROR: Required file not found: $f" >&2; exit 1; }
+    [[ -f "$f" ]] || { echo "ERROR: Required file not found: $f (did you run 01_prepare_reference.sh $PRIMER_SET first?)" >&2; exit 1; }
 done
 
 echo ""
@@ -199,20 +223,19 @@ echo "max_seq_no (prediction)    : $MAX_SEQUENCES_PRED"
 FAILED_RANKS=()
 for rank in "${RANKS[@]}"; do
     rank_col=$(get_rank_col "$rank")
-    st=$(get_start_thresh "$rank")
     id_file="$DATA_DIR/${rank}_pred_id_global.txt"
 
-    subset_fasta="$TMP_DIR/eukaryome_${rank}_global.fasta"
-    subset_class="$TMP_DIR/eukaryome_${rank}_global.classification"
-    maxseq_fasta="$TMP_DIR/eukaryome_${rank}_global_maxseq.fasta"
-    maxseq_class="$TMP_DIR/eukaryome_${rank}_global_maxseq.classification"
-    pred_fasta="$TMP_DIR/eukaryome_${rank}_global_pred.fasta"
-    pred_class="$TMP_DIR/eukaryome_${rank}_global_pred.classification"
-    sim_out="$TMP_DIR/eukaryome_${rank}_global_pred.sim"
+    subset_fasta="$TMP_DIR/${TAXON_PREFIX}_${rank}_global.fasta"
+    subset_class="$TMP_DIR/${TAXON_PREFIX}_${rank}_global.classification"
+    maxseq_fasta="$TMP_DIR/${TAXON_PREFIX}_${rank}_global_maxseq.fasta"
+    maxseq_class="$TMP_DIR/${TAXON_PREFIX}_${rank}_global_maxseq.classification"
+    pred_fasta="$TMP_DIR/${TAXON_PREFIX}_${rank}_global_pred.fasta"
+    pred_class="$TMP_DIR/${TAXON_PREFIX}_${rank}_global_pred.classification"
+    sim_out="$DATA_DIR/${TAXON_PREFIX}_${rank}_global_pred.sim"
 
     echo ""
     echo "--- GLOBAL: ${rank} ---"
-    echo "  Start threshold: $st"
+    echo "  Start threshold: $START_THRESH"
 
     subset_fasta_and_classification "$id_file" "$V4_FASTA" "$V4_CLASS" "$subset_fasta" "$subset_class"
     echo "  Initial subset size: $(( $(wc -l < "$subset_class") - 1 ))"
@@ -232,10 +255,10 @@ for rank in "${RANKS[@]}"; do
         --classification "$pred_class" \
         --rank "$rank" \
         --sim "$sim_out" \
-        --start_threshold "$st" \
+        --start_threshold "$START_THRESH" \
         --end_threshold "$END_THRESH" \
         --step "$STEP" \
-        --prefix "$PREFIX" \
+        --prefix "$TAXON_PREFIX" \
         --id_col id \
         --run_parallel "$RUN_PARALLEL" \
         --n_cpus "$N_CPUS" \
@@ -247,7 +270,7 @@ done
 
 echo ""
 echo "=== CLEANUP ==="
-rm -rf "$TMP_DIR"
+rm -f "$TMP_DIR"/"${TAXON_PREFIX}"_*
 
 echo ""
 if [[ ${#FAILED_RANKS[@]} -gt 0 ]]; then
@@ -255,7 +278,7 @@ if [[ ${#FAILED_RANKS[@]} -gt 0 ]]; then
     printf '  - %s\n' "${FAILED_RANKS[@]}"
     exit 1
 else
-    echo "=== PIPELINE COMPLETED SUCCESSFULLY ==="
+    echo "=== PIPELINE COMPLETED SUCCESSFULLY: ${TAXON_LABEL} / ${PRIMER_SET_NAME} ==="
 fi
 
 echo "$(date)"
