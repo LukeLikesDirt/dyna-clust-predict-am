@@ -8,6 +8,9 @@ drafts/
 # Test files and code
 test/
 
+# Superseded scripts, kept locally for reference only
+scripts/backups/
+
 # Log outputs
 slurm/
 logs/
