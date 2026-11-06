@@ -43,6 +43,26 @@ Run from the project root.
 
 Taxon groups run through 02: glomeromycota, endogonomycetes. Eukaryome uses a per-rank similarity matrix instead of one shared matrix, so it has its own script and config (03_predict_euk_cutoffs.sh, config/taxa/eukaryome.conf) rather than going through 02.
 
+### Coverage gate and re-runs
+
+vsearch's default identity definition ignores terminal gaps, so two unrelated
+sequences can score 100% from a few overlapping bases, and single linkage then
+chains broad datasets together. `02` and `03` therefore pass `--min_cov 80` to
+`R/compute_sim.R`, which drops pairs where either sequence is covered below 80%
+(`MIN_COV` in each script; 0 turns it off). The gate is applied there, not in
+`predict.R`, because `predict.R` is given the finished matrix with `--sim`
+(`predict.R --min_cov` only affects similarities it computes itself, and warns
+when a loaded matrix is used). `02` reuses its shared matrix between runs, so it
+records the gate in `<matrix>.sim.min_cov` and recomputes, keeping the old file as
+`<matrix>.sim.pre_min_cov`, when the gate differs.
+
+Both scripts also pass `--redo yes` to `predict.R`. Without it, F-measures cached
+in `<prefix>.predicted` are reused even after the sequences or the gate change,
+so `sequence number` updates while `cut-off` and `confidence` stay frozen.
+`--redo yes` overwrites only the datasets in the current run, so for a clean
+re-prediction first move the old `data/<primer_set>/*.predicted` and
+`data/<primer_set>/*.cutoffs.json*` aside.
+
 ### Adding a primer pair
 
 1. `config/primers/<name>.conf` (copy an existing one). Calibrate the

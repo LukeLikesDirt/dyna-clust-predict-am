@@ -57,6 +57,15 @@ readonly END_THRESH=1
 readonly STEP=0.001
 readonly N_CPUS="${SLURM_CPUS_PER_TASK:-$(sysctl -n hw.ncpu 2>/dev/null || nproc)}"
 readonly RUN_PARALLEL="yes"
+# A pair counts only if vsearch's qcov and tcov are both at least this
+# percentage. vsearch's default identity definition excludes terminal gaps, so
+# unrelated sequences can score 100% from a few overlapping bases, which chains
+# broad datasets together under single linkage. 0 turns the gate off.
+# It is applied by compute_sim.R: predict.R is given each rank's finished matrix (--sim).
+readonly MIN_COV=80
+# Recompute F-measures instead of reusing those cached in <prefix>.predicted,
+# which otherwise stay frozen when the sequences or MIN_COV change.
+readonly REDO="yes"
 
 mkdir -p "$DATA_DIR" "$TMP_DIR" "$LOG_DIR"
 LOG_FILE="$LOG_DIR/03_predict_${TAXON_PREFIX}_cutoffs_$(date +%Y%m%d_%H%M%S).log"
@@ -66,6 +75,7 @@ echo "==========================================================================
 echo "PREDICTING CUTOFFS: $TAXON_LABEL, primer set = $PRIMER_SET_NAME"
 echo "  Ranks:   ${RANKS[*]}"
 echo "  MIN_SIM: $MIN_SIM"
+echo "  MIN_COV: $MIN_COV"
 echo "=============================================================================="
 
 get_rank_col() {
@@ -244,7 +254,7 @@ for rank in "${RANKS[@]}"; do
     downsample_dominant "$maxseq_class" "$maxseq_fasta" "$rank_col" "$MAX_PROPORTION" "$SEED" "$pred_class" "$pred_fasta" || true
     echo "  Final prediction size: $(( $(wc -l < "$pred_class") - 1 ))"
 
-    Rscript "$COMPUTE_SIM" --input "$pred_fasta" --out "$TMP_DIR" --min_sim "$MIN_SIM" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
+    Rscript "$COMPUTE_SIM" --input "$pred_fasta" --out "$TMP_DIR" --min_sim "$MIN_SIM" --min_cov "$MIN_COV" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
 
     generated_sim="$TMP_DIR/$(basename "${pred_fasta%.*}").sim"
     [[ -f "$generated_sim" ]] || { echo "  FAILED: Expected sim file missing: $generated_sim" >&2; FAILED_RANKS+=("$rank"); continue; }
@@ -261,6 +271,7 @@ for rank in "${RANKS[@]}"; do
         --prefix "$TAXON_PREFIX" \
         --id_col id \
         --run_parallel "$RUN_PARALLEL" \
+        --redo "$REDO" \
         --n_cpus "$N_CPUS" \
         --tmp_dir "$TMP_DIR" \
         --out "$DATA_DIR" || FAILED_RANKS+=("$rank")
