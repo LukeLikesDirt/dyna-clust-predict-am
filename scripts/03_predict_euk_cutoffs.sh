@@ -57,14 +57,14 @@ readonly END_THRESH=1
 readonly STEP=0.001
 readonly N_CPUS="${SLURM_CPUS_PER_TASK:-$(sysctl -n hw.ncpu 2>/dev/null || nproc)}"
 readonly RUN_PARALLEL="yes"
-# A pair counts only if vsearch's qcov and tcov are both at least this
-# percentage. vsearch's default identity definition excludes terminal gaps, so
-# unrelated sequences can score 100% from a few overlapping bases, which chains
-# broad datasets together under single linkage. 0 turns the gate off.
-# It is applied by compute_sim.R: predict.R is given each rank's finished matrix (--sim).
-readonly MIN_COV=80
-# Recompute F-measures instead of reusing those cached in <prefix>.predicted,
-# which otherwise stay frozen when the sequences or MIN_COV change.
+# vsearch identity definition. 2 = terminal gaps excluded.
+readonly IDDEF=2
+# Minimum overlap (bp) for a pair to count; without it, sequences that share a
+# few bases score 100% under IDDEF=2. Set to the amplicon's minimum length
+# (MIN_LEN in config/primers/<primer_set>.conf).
+readonly MIN_OVERLAP="$MIN_LEN"
+# Recompute F-measures instead of reusing those cached in <prefix>.predicted;
+# the cache is not refreshed when inputs or settings change.
 readonly REDO="yes"
 
 mkdir -p "$DATA_DIR" "$TMP_DIR" "$LOG_DIR"
@@ -75,7 +75,8 @@ echo "==========================================================================
 echo "PREDICTING CUTOFFS: $TAXON_LABEL, primer set = $PRIMER_SET_NAME"
 echo "  Ranks:   ${RANKS[*]}"
 echo "  MIN_SIM: $MIN_SIM"
-echo "  MIN_COV: $MIN_COV"
+echo "  IDDEF:   $IDDEF"
+echo "  MIN_OVERLAP: $MIN_OVERLAP bp"
 echo "=============================================================================="
 
 get_rank_col() {
@@ -254,7 +255,7 @@ for rank in "${RANKS[@]}"; do
     downsample_dominant "$maxseq_class" "$maxseq_fasta" "$rank_col" "$MAX_PROPORTION" "$SEED" "$pred_class" "$pred_fasta" || true
     echo "  Final prediction size: $(( $(wc -l < "$pred_class") - 1 ))"
 
-    Rscript "$COMPUTE_SIM" --input "$pred_fasta" --out "$TMP_DIR" --min_sim "$MIN_SIM" --min_cov "$MIN_COV" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
+    Rscript "$COMPUTE_SIM" --input "$pred_fasta" --out "$TMP_DIR" --min_sim "$MIN_SIM" --iddef "$IDDEF" --min_overlap "$MIN_OVERLAP" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
 
     generated_sim="$TMP_DIR/$(basename "${pred_fasta%.*}").sim"
     [[ -f "$generated_sim" ]] || { echo "  FAILED: Expected sim file missing: $generated_sim" >&2; FAILED_RANKS+=("$rank"); continue; }
@@ -268,6 +269,8 @@ for rank in "${RANKS[@]}"; do
         --start_threshold "$START_THRESH" \
         --end_threshold "$END_THRESH" \
         --step "$STEP" \
+        --iddef "$IDDEF" \
+        --min_overlap "$MIN_OVERLAP" \
         --prefix "$TAXON_PREFIX" \
         --id_col id \
         --run_parallel "$RUN_PARALLEL" \
