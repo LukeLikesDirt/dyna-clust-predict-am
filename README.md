@@ -43,25 +43,23 @@ Run from the project root.
 
 Taxon groups run through 02: glomeromycota, endogonomycetes. Eukaryome uses a per-rank similarity matrix instead of one shared matrix, so it has its own script and config (03_predict_euk_cutoffs.sh, config/taxa/eukaryome.conf) rather than going through 02.
 
-### Coverage gate and re-runs
+### Similarity settings and re-runs
 
-vsearch's default identity definition ignores terminal gaps, so two unrelated
-sequences can score 100% from a few overlapping bases, and single linkage then
-chains broad datasets together. `02` and `03` therefore pass `--min_cov 80` to
-`R/compute_sim.R`, which drops pairs where either sequence is covered below 80%
-(`MIN_COV` in each script; 0 turns it off). The gate is applied there, not in
-`predict.R`, because `predict.R` is given the finished matrix with `--sim`
-(`predict.R --min_cov` only affects similarities it computes itself, and warns
-when a loaded matrix is used). `02` reuses its shared matrix between runs, so it
-records the gate in `<matrix>.sim.min_cov` and recomputes, keeping the old file as
-`<matrix>.sim.pre_min_cov`, when the gate differs.
+`02` and `03` compute similarities with `R/compute_sim.R` using `--iddef 2`
+(terminal gaps excluded) and `--min_overlap` set to the primer pair's `MIN_LEN`
+(150 bp for AMV4.5NF–AMDGR, 440 bp for WANDA–AML2). Without a minimum overlap,
+sequences that share a few bases score 100% and single linkage chains unrelated
+taxa together. `predict.R` is given the finished matrix with `--sim`. `02`
+reuses its shared matrix between runs, so it records the settings in
+`<matrix>.sim.gate` and recomputes when they differ, keeping the old file as
+`<matrix>.sim.old`.
 
 Both scripts also pass `--redo yes` to `predict.R`. Without it, F-measures cached
-in `<prefix>.predicted` are reused even after the sequences or the gate change,
-so `sequence number` updates while `cut-off` and `confidence` stay frozen.
+in `<prefix>.predicted` are reused even after the sequences or settings change.
 `--redo yes` overwrites only the datasets in the current run, so for a clean
 re-prediction first move the old `data/<primer_set>/*.predicted` and
-`data/<primer_set>/*.cutoffs.json*` aside.
+`data/<primer_set>/*_raw_cutoffs.*` aside. `predict.R` writes
+`<taxon>_raw_cutoffs.txt`, which `05_combine_cutoffs.sh` reads.
 
 ### Adding a primer pair
 

@@ -4,7 +4,7 @@
 # Description:  Wrapper around R/combine_cutoffs.R that auto-discovers what
 #               to combine, so adding a new primer pair needs no edit here:
 #                 - primer sets: every config/primers/*.conf
-#                 - taxa:        union of *.cutoffs.json.txt basenames found
+#                 - taxa:        union of *_raw_cutoffs.txt basenames found
 #                                under data/<primer_set>/ for those primer
 #                                sets (missing primer_set x taxon
 #                                combinations are skipped by the R script,
@@ -16,7 +16,7 @@
 #
 # Note:         This script must be run from the project root directory,
 #               after 02_predict_cutoffs.sh / 03_predict_euk_cutoffs.sh have
-#               produced at least one *.cutoffs.json.txt.
+#               produced at least one *_raw_cutoffs.txt.
 
 set -eo pipefail
 
@@ -59,7 +59,7 @@ if [[ ${#PRIMER_SETS[@]} -eq 0 ]]; then
 fi
 
 # =============================================================================
-# DISCOVER TAXA (union of *.cutoffs.json.txt across discovered primer sets)
+# DISCOVER TAXA (union of *_raw_cutoffs.txt across discovered primer sets)
 # =============================================================================
 
 if [[ -n "$TAXA_OVERRIDE" ]]; then
@@ -70,16 +70,16 @@ else
         [[ -n "$name" ]] && TAXA+=("$name")
     done < <(
         for ps in "${PRIMER_SETS[@]}"; do
-            for f in "$DATA_DIR/$ps"/*.cutoffs.json.txt; do
+            for f in "$DATA_DIR/$ps"/*_raw_cutoffs.txt; do
                 [[ -f "$f" ]] || continue
-                basename "$f" .cutoffs.json.txt
+                basename "$f" _raw_cutoffs.txt
             done
         done | sort -u
     )
 fi
 
 if [[ ${#TAXA[@]} -eq 0 ]]; then
-    echo "ERROR: No *.cutoffs.json.txt found under $DATA_DIR/<primer_set>/ for any of: ${PRIMER_SETS[*]}" >&2
+    echo "ERROR: No *_raw_cutoffs.txt found under $DATA_DIR/<primer_set>/ for any of: ${PRIMER_SETS[*]}" >&2
     echo "Run 02_predict_cutoffs.sh / 03_predict_euk_cutoffs.sh first." >&2
     exit 1
 fi

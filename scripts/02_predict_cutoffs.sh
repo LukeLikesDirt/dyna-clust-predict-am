@@ -55,20 +55,21 @@ readonly END_THRESH=1
 readonly STEP=0.001
 readonly N_CPUS="${SLURM_CPUS_PER_TASK:-$(sysctl -n hw.ncpu 2>/dev/null || nproc)}"
 readonly RUN_PARALLEL="yes"
-# A pair counts only if vsearch's qcov and tcov are both at least this
-# percentage. vsearch's default identity definition excludes terminal gaps, so
-# unrelated sequences can score 100% from a few overlapping bases, which chains
-# broad datasets together under single linkage. 0 turns the gate off.
-# It is applied by compute_sim.R: predict.R is given the finished matrix (--sim).
-readonly MIN_COV=80
-# Recompute F-measures instead of reusing those cached in <prefix>.predicted,
-# which otherwise stay frozen when the sequences or MIN_COV change.
+# vsearch identity definition. 2 = terminal gaps excluded.
+readonly IDDEF=2
+# Minimum overlap (bp) for a pair to count; without it, sequences that share a
+# few bases score 100% under IDDEF=2. Set to the amplicon's minimum length
+# (MIN_LEN in config/primers/<primer_set>.conf).
+readonly MIN_OVERLAP="$MIN_LEN"
+# Recompute F-measures instead of reusing those cached in <prefix>.predicted;
+# the cache is not refreshed when inputs or settings change.
 readonly REDO="yes"
 
 readonly SIM_FILE="$OUT_DIR/${TAXON_PREFIX}_${SIM_BASE_RANK}.sim"
-# Records the MIN_COV the matrix was built with, so one built before the gate
-# existed (or with another value) is never reused silently.
-readonly SIM_GATE_FILE="${SIM_FILE}.min_cov"
+# Records the settings the matrix was built with, so a matrix built with other
+# settings is recomputed rather than reused.
+readonly SIM_GATE="iddef=${IDDEF} min_overlap=${MIN_OVERLAP}"
+readonly SIM_GATE_FILE="${SIM_FILE}.gate"
 
 mkdir -p "$OUT_DIR" "$TMP_DIR" "$LOG_DIR"
 LOG_FILE="$LOG_DIR/02_predict_${TAXON_PREFIX}_cutoffs_$(date +%Y%m%d_%H%M%S).log"
@@ -78,7 +79,8 @@ echo "==========================================================================
 echo "PREDICTING CUTOFFS: $TAXON_LABEL, primer set = $PRIMER_SET_NAME"
 echo "  Ranks:       ${RANKS[*]}"
 echo "  MIN_SIM:     $MIN_SIM"
-echo "  MIN_COV:     $MIN_COV"
+echo "  IDDEF:       $IDDEF"
+echo "  MIN_OVERLAP: $MIN_OVERLAP bp"
 echo "  Cascade base: ${CASCADE_BASE_RANK:-<none -- direct from taxon filter>}"
 echo "=============================================================================="
 
@@ -268,15 +270,15 @@ echo "=== STEP 2: COMPUTE MASTER SIM MATRIX ==="
 echo "$(date)"
 sim_base_fasta="$OUT_DIR/${TAXON_PREFIX}_${SIM_BASE_RANK}.fasta"
 
-if [[ -f "$SIM_FILE" && "$(cat "$SIM_GATE_FILE" 2>/dev/null)" == "$MIN_COV" ]]; then
-    echo "Sim file already exists (built with --min_cov $MIN_COV), reusing: $SIM_FILE"
+if [[ -f "$SIM_FILE" && "$(cat "$SIM_GATE_FILE" 2>/dev/null)" == "$SIM_GATE" ]]; then
+    echo "Sim file already exists (built with $SIM_GATE), reusing: $SIM_FILE"
 else
     if [[ -f "$SIM_FILE" ]]; then
-        echo "Existing sim file was not built with --min_cov $MIN_COV; keeping it as ${SIM_FILE}.pre_min_cov and recomputing"
-        mv "$SIM_FILE" "${SIM_FILE}.pre_min_cov"
+        echo "Existing sim file was not built with $SIM_GATE; keeping it as ${SIM_FILE}.old and recomputing"
+        mv "$SIM_FILE" "${SIM_FILE}.old"
     fi
-    Rscript "$COMPUTE_SIM" --input "$sim_base_fasta" --out "$OUT_DIR" --min_sim "$MIN_SIM" --min_cov "$MIN_COV" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
-    echo "$MIN_COV" > "$SIM_GATE_FILE"
+    Rscript "$COMPUTE_SIM" --input "$sim_base_fasta" --out "$OUT_DIR" --min_sim "$MIN_SIM" --iddef "$IDDEF" --min_overlap "$MIN_OVERLAP" --n_cpus "$N_CPUS" --tmp_dir "$TMP_DIR"
+    echo "$SIM_GATE" > "$SIM_GATE_FILE"
     echo "Sim file written: $SIM_FILE"
 fi
 
@@ -314,6 +316,8 @@ for rank in "${RANKS[@]}"; do
         --start_threshold "$START_THRESH" \
         --end_threshold "$END_THRESH" \
         --step "$STEP" \
+        --iddef "$IDDEF" \
+        --min_overlap "$MIN_OVERLAP" \
         --prefix "$TAXON_PREFIX" \
         --id_col id \
         --run_parallel "$RUN_PARALLEL" \

@@ -9,7 +9,7 @@
 #     --primer_sets wanda_aml2,amv45nf_amdgr \
 #     --taxa        glomeromycota,endogonomycetes,eukaryome
 #
-# For each <primer_set>, reads data/<primer_set>/<taxon>.cutoffs.json.txt
+# For each <primer_set>, reads data/<primer_set>/<taxon>_raw_cutoffs.txt
 # (written by 02_predict_cutoffs.sh) for every taxon in --taxa, and:
 #   1. Writes output/cutoffs_am_<primer_set>.txt -- the per-primer-set
 #      combined table (family/genus/species rows only -- order is dropped,
@@ -108,7 +108,7 @@ for (ps in primer_sets) {
   ps_rows <- list()
 
   for (taxon in taxa) {
-    f <- file.path(data_dir, paste0(taxon, ".cutoffs.json.txt"))
+    f <- file.path(data_dir, paste0(taxon, "_raw_cutoffs.txt"))
     if (!file.exists(f)) {
       warning("Missing (skipped): ", f)
       next
